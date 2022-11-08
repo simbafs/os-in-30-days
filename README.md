@@ -88,3 +88,4 @@ list file 中文翻譯作清單檔案，他的功能是讓你知道每一行的�
 ## 參考資料
 * https://stackoverflow.com/questions/8140016/x86-nasm-org-directive-meaning
 * https://zh.wikipedia.org/wiki/INT_10H
+* https://stackoverflow.com/questions/16154870/how-to-read-a-nasm-assembly-program-lst-listing-file
