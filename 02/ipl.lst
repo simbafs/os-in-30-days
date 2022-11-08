@@ -1,0 +1,62 @@
+     1                                  ; fat12 軟碟內容
+     2                                  org 0x7c00
+     3 00000000 EB4E                    jmp entry
+     4                                  
+     5 00000002 90                      db 0x90 ;跳轉指令（跳過開頭一段區域）
+     6 00000003 48454C4C4F49504C        db "HELLOIPL" ;OEM名稱（空格補齊）
+     7 0000000B 0002                    dw 512 ;每個磁區的位元組數
+     8 0000000D 01                      db 1 ;每叢集磁區數
+     9 0000000E 0100                    dw 1 ;保留磁區數
+    10 00000010 02                      db 2 ;檔案配置表數目
+    11 00000011 E000                    dw 224 ;最大根目錄條目個數
+    12 00000013 400B                    dw 2880 ;總磁區數
+    13 00000015 F0                      db 0xf0 ;媒介描述
+    14 00000016 0900                    dw 9 ;每個檔案配置表的磁區
+    15 00000018 1200                    dw 18 ;每磁軌的磁區
+    16 0000001A 0200                    dw 2 ;磁頭數
+    17 0000001C 00000000                dd 0 ;隱藏磁區
+    18 00000020 400B0000                dd 2880 ;總磁區數
+    19 00000024 000029                  db 0, 0, 0x29 ;
+    20 00000027 FFFFFFFF                dd 0xffffffff
+    21 0000002B 48454C4C4F2D4F5320-     db "HELLO-OS   "
+    21 00000034 2020               
+    22 00000036 4641543132202020        db "FAT12   "
+    23 0000003E <res 12h>               resb 18
+    23          ******************       warning: uninitialized space declared in .text section: zeroing [-w+zeroing]
+    24                                  
+    25                                  ; 程式碼
+    26                                  entry:
+    27 00000050 B80000                  	mov ax, 0 ; 累加器 accumulator
+    28 00000053 8ED0                    	mov ss, ax ; 堆疊區塊 stack segment
+    29 00000055 BC007C                  	mov sp, 0x7c00 ; 堆疊指標 stack pointer
+    30 00000058 8ED8                    	mov ds, ax ; 資料區段 data sement
+    31 0000005A 8EC0                    	mov es, ax ; 額外區段 extra segment
+    32 0000005C BE[7400]                	mov si, msg ; 來源索引 source index
+    33                                  
+    34                                  putloop:
+    35 0000005F 8A04                    	mov al, [si] ; 將 si 指向的內容（1 byte）帶入 al, al = *si
+    36                                  	             ; 累加器低位部份 accumulator low
+    37 00000061 83C601                  	add si, 1 ; 指向下一個 byte
+    38 00000064 3C00                    	cmp al, 0 
+    39 00000066 7409                    	je fin 
+    40 00000068 B40E                    	mov ah, 0x0e ; 累加器高位部份 accumulator high，設定模式為打字機輸出
+    41 0000006A BB0F00                  	mov bx, 15 ; 基底 base 
+    42 0000006D CD10                    	int 0x10 ; interupt
+    43 0000006F EBEE                    	jmp putloop
+    44                                  	
+    45                                  fin:
+    46 00000071 F4                      	hlt ; cpu 休眠
+    47 00000072 EBFD                    	jmp fin
+    48                                  
+    49                                  msg:
+    50                                  	; 訊息
+    51 00000074 0A0A                    	db 0x0a, 0x0a
+    52 00000076 68656C6C6F2C20776F-     	db "hello, world"
+    52 0000007F 726C64             
+    53 00000082 0A                      	db 0x0a
+    54 00000083 00                      	db 0
+    55                                  
+    56 00000084 <res 17Ah>              	resb 0x1fe-($-$$)
+    56          ******************       warning: uninitialized space declared in .text section: zeroing [-w+zeroing]
+    57                                  
+    58 000001FE 55AA                    	db 0x55, 0xaa

@@ -35,3 +35,56 @@ helloos2.img        用 nasm 編出來的映像檔
 helloos.img.ascii   xxd helloos.img
 helloos.img         親自打出來的映像檔
 ```
+
+# Day 02
+首先引入了更多的組語命令，把昨天看不懂的那坨組語重新改寫，然後介紹了一大堆暫存器
+
+## org
+`org` 是一個組語命令，原文是 origin，我的理解他是指定接下來的程式要載入到記憶體的 `0x7c00` 位置，但為什麼是這裡 [這篇部落格](https://www.ruanyifeng.com/blog/2015/09/0x7c00.html) 有提出歷史因素
+
+## 組語命令
+| 組語                  | 對應的 c                |
+| :---:                 | :---                    |
+| `mov a, b`            | `a = b`                 |
+| `mov a, [b]`          | `a = *b`                |
+| `jump lebel`          | `goto lable`            |
+| `cmp a, b ; je lebel` | `if(a == b) goto lebel` |
+| `add a, b`            | `a += b`                |
+| `int` | interupt，調用 BIOS 函數 |
+
+## 16 位元暫存器與 8 位元暫存器
+| 名稱 | 英文              | 中文     | 八位元 |
+| `ax` | accumulator       | 累加器   | ah+al  |
+| `cx` | counter           | 計數器   | ch+cl  |
+| `dx` | data              | 資料     | dh+dl  |
+| `bx` | base              | 基底     | bh+dl  |
+| `sp` | stack pointer     | 堆疊指標 |        |
+| `bp` | base pointer      | 基底指標 |        |
+| `si` | source index      | 來源索引 |        |
+| `di` | destination index | 目的索引 |        |
+`ax`、`cx`、`dx`、`bx` 各自有分高低位暫存器，其實就是把他從中間拆開，0~7 位元稱作低位暫存器，8~15 位元稱作高位暫存器  
+書中提到，在 32 位元暫存器中，名稱就是加上 `e`，例如 32 位元累加器就是 `eax`，低位部份就是 `ax`，但高位部份沒有名字  
+
+## 區段暫存器
+| 名稱 | 英文          | 中文       |
+| `es` | extra segment | 額外區段   |
+| `cs` | code segment  | 程式碼區段 |
+| `ss` | stack segment | 堆疊區段   |
+| `ds` | data segment  | 資料區段   |
+| `fs` |               |            |
+| `gs` |               |            |
+
+## int 0x10
+這個東西會調用 BIOS 中關於繪圖、字元輸出的功能，除了這裡印字串以外也可以畫圖。使用時他會去讀其中幾個暫存器的值，並且會有不同作用，以這次的程式為例
+| 暫存器 | 值     | 說明                       |
+| `ah`   | `0x0e` | 打字機模式                 |
+| `al`   | `[si]` | 要印的字元                 |
+| `bh`   | 未指定 | 頁碼（不知道是什麼）       |
+| `bl`   | `15`   | 顏色，但是目前的模式不能用 |
+
+## list file
+list file 中文翻譯作清單檔案，他的功能是讓你知道每一行的組語翻譯出來是什麼，產生的方式是 `nasm -l ipl.lst ipl.nas`
+
+## 參考資料
+* https://stackoverflow.com/questions/8140016/x86-nasm-org-directive-meaning
+* https://zh.wikipedia.org/wiki/INT_10H

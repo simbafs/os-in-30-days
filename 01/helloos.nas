@@ -1,19 +1,19 @@
 ; fat12 軟碟內容
-db 0xeb, 0x4e, 0x90
-db "HELLOIPL"
-dw 512 
-db 1
-dw 1
-db 2 
-dw 224
-dw 2880
-db 0xf0
-dw 9
-dw 18
-dw 2
-dd 0
-dd 2880
-db 0, 0, 0x29
+db 0xeb, 0x4e, 0x90 ;跳轉指令（跳過開頭一段區域）
+db "HELLOIPL" ;OEM名稱（空格補齊）
+dw 512 ;每個磁區的位元組數
+db 1 ;每叢集磁區數
+dw 1 ;保留磁區數
+db 2 ;檔案配置表數目
+dw 224 ;最大根目錄條目個數
+dw 2880 ;總磁區數
+db 0xf0 ;媒介描述
+dw 9 ;每個檔案配置表的磁區
+dw 18 ;每磁軌的磁區
+dw 2 ;磁頭數
+dd 0 ;隱藏磁區
+dd 2880 ;總磁區數
+db 0, 0, 0x29 ;
 dd 0xffffffff
 db "HELLO-OS   "
 db "FAT12   "
