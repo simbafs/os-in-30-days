@@ -95,3 +95,109 @@ list file 中文翻譯作清單檔案，他的功能是讓你知道每一行的�
 * https://stackoverflow.com/questions/8140016/x86-nasm-org-directive-meaning
 * https://zh.wikipedia.org/wiki/INT_10H
 * https://stackoverflow.com/questions/16154870/how-to-read-a-nasm-assembly-program-lst-listing-file
+
+# Day 03 
+## 讀入一個磁區
+1. 設定讀入的記憶體地址
+2. 設定磁柱、磁頭、磁區、一次幾個磁區
+ipl.nas:37: error: invalid combination of opcode and operands
+3. 設定[模式](https://en.wikipedia.org/wiki/INT_13H#List_of_INT_13h_services)
+4. 設定磁碟機
+5 `int 0x13`
+6. 如果沒有錯誤跳到 `fin`
+7. 計數器 + 1 
+8. 如果計數器 >= 5，跳到 error
+9. 再試一次
+
+> **Warning**  
+> 書上這邊有錯誤，`jnc fin` 後面的註解應該是「如果『沒有』錯誤......」
+
+## 讀入 18 個磁區
+這邊跟讀入 1 個磁區的步驟基本上一樣，但是加上一個迴圈的功能  
+1. 把 `jnc fin` 改成 `jnc next`
+2. 在失敗計數器 `mov si, 0` 前新增一個 label `readloop`，因為這個暫存器每次讀入都要重設，相當於區域變數
+2. 新增 label `next`，負責處理迴圈的 ++ 和判斷式的部份
+```nasm
+next;
+	; 因為 es 不能做運算，所以丟到 ax
+	mov ax, es 
+	add ax, 0x20 
+	mov es, ax
+	; 如果(++目前磁區) <= 18，讀取下一個磁區
+	add cl, 1 
+	cmp cl, 18 
+	jbe readloop
+```
+
+> **Warning**  
+> 這裡 1. 的地方書上範例忘記改了，但是光碟裡的檔案是正確的
+
+## 讀入 10 個磁柱
+模仿[讀入 18 個磁區](#讀入 18 個磁區)的作法，將 next 擴充，這裡用到一個新語法 `equ`，下面會介紹。我們讀取的順去是讀完 18 個磁區後翻面用另一個磁頭，接這換到下一個磁柱
+```nasm
+next:
+	; 因為 es 不能做運算，所以丟到 ax
+	mov ax, es 
+	add ax, 0x20 
+	mov es, ax
+
+	; 如果(++目前磁區) <= 18，讀取下一個磁區
+	add cl, 1 ; cl -> 要讀取的磁區 
+	cmp cl, 18 
+	jbe readloop
+
+	; 讀完一面了，換下一個磁頭
+	mov cl, 1
+	add dh, 2 ; dh -> 目前的磁柱
+	cmp dh, 2 
+	jbe readloop 
+
+	; 讀完一個磁柱兩面了，換下一個磁柱
+	mov dh, 0
+	add ch, 1 ; ch -> 要讀取的磁柱
+	cmp ch, CYLC
+	jbe readloop
+```
+
+### EQU
+`equ` 語法跟 c 中的 `#define` 一樣，都是在編譯/組譯時期就替換掉的
+```
+CYLC equ 10 ; 相當於 #define CYLC 10
+```
+根據產生的 [ipl.lst](https://github.com/simbafs/os-in-30-days/tree/main/03/10cylinder/ipl.lst)
+```
+     1                                  ; fat12 軟碟內容
+     2                                  
+     3                                  CYLC equ 10 ; 相當於 #define CYLC 10
+     4                                  
+     5                                  org 0x7c00
+     6 00000000 EB4E                    jmp entry
+```
+看這裡的第 3 行，可以發現 `equ` 指令不會被翻譯，往下拉到 `next` 中用到 `CYLC` 的部份，也就是第 84 行附近
+```
+    81                                  	; 讀完一個磁柱兩面了，換下一個磁柱
+    82 0000009E B600                    	mov dh, 0
+    83 000000A0 80C501                  	add ch, 1 ; ch -> 要讀取的磁柱
+    84 000000A3 80FD0A                  	cmp ch, CYLC
+    85 000000A6 76C4                    	jbe readloop
+```
+可以看到應該放 `CYLC` 的地方被 `0x0A` 取代，也就是 `CYLC` 的值 `10`
+
+## 疑問
+這邊似乎沒有方式檢驗是否成功把磁區都讀進來了，因為我的程式不是完全照書上打，也許迴圈一開始就沒進去，直接進到 `fin`。似乎只能等到用到那些磁區的資料的時候才知道了
+
+## 簡單的 OS
+這邊就有點麻煩了，因為用到作者自己寫得工具，而且檔案有點多，看作者的 Makefile 大概理解流程是
+```
+記號 'a -> (b c)' a 依賴於 b 和 c，換句話說要先產生 b 和 c 才能產生 a
+haribote.img -> (ipl.bin -> (ipl.nas) haribote.sys -> (haribote.nas))
+```
+看起來是把這次新增的 OS 本體（haribote.nas）和原本的 ipl 各自組譯後弄成一個檔案（haribote.img），有點像 c 編譯後要連結的概念（？這裡我有一個小疑惑，為什麼作者要把 `Makefile` 加進依賴項裡面，如果 `Makefile` 不存在根本不會執行才對，那為什麼要做白工？或許是某種歷史因素？  
+
+檢查了一下作者給的 ipl10.nas，裡面在 `next` 的最後面加上了
+```nasm 
+MOV	[0x0ff0], CH
+JMP	0xc200
+```		
+然後把最後面的 `msg` 改成 `loading error`
+意思大概是全部載入成功的話就會執行新增的那兩行，如果中間曾經跳到 `error`，就會把 `msg` 中的錯誤訊息印出來。而 `0xc200` 根據作者的解釋是 os 在讀進來的磁碟在記憶體中的位置，那麼現在的唯一的問題就是要怎麼正確的「連結」了

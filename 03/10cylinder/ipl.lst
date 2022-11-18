@@ -1,0 +1,119 @@
+     1                                  ; fat12 軟碟內容
+     2                                  
+     3                                  CYLC equ 10 ; 相當於 #define CYLC 10
+     4                                  
+     5                                  org 0x7c00
+     6 00000000 EB4E                    jmp entry
+     7                                  
+     8 00000002 90                      db 0x90 ;跳轉指令（跳過開頭一段區域）
+     9 00000003 48454C4C4F49504C        db "HELLOIPL" ;OEM名稱（空格補齊）
+    10 0000000B 0002                    dw 512 ;每個磁區的位元組數
+    11 0000000D 01                      db 1 ;每叢集磁區數
+    12 0000000E 0100                    dw 1 ;保留磁區數
+    13 00000010 02                      db 2 ;檔案配置表數目
+    14 00000011 E000                    dw 224 ;最大根目錄條目個數
+    15 00000013 400B                    dw 2880 ;總磁區數
+    16 00000015 F0                      db 0xf0 ;媒介描述
+    17 00000016 0900                    dw 9 ;每個檔案配置表的磁區
+    18 00000018 1200                    dw 18 ;每磁軌的磁區
+    19 0000001A 0200                    dw 2 ;磁頭數
+    20 0000001C 00000000                dd 0 ;隱藏磁區
+    21 00000020 400B0000                dd 2880 ;總磁區數
+    22 00000024 000029                  db 0, 0, 0x29 ;
+    23 00000027 FFFFFFFF                dd 0xffffffff
+    24 0000002B 48454C4C4F2D4F5320-     db "HELLO-OS   "
+    24 00000034 2020               
+    25 00000036 4641543132202020        db "FAT12   "
+    26 0000003E <res 12h>               resb 18
+    26          ******************       warning: uninitialized space declared in .text section: zeroing [-w+zeroing]
+    27                                  
+    28                                  ; 程式碼
+    29                                  entry:
+    30                                  	; mov ax, 0 ; 累加器 accumulator
+    31 00000050 8ED0                    	mov ss, ax ; 堆疊區塊 stack segment
+    32 00000052 BC007C                  	mov sp, 0x7c00 ; 堆疊指標 stack pointer
+    33 00000055 8ED8                    	mov ds, ax ; 資料區段 data sement
+    34                                  	; mov es, ax ; 額外區段 extra segment
+    35 00000057 BE[C000]                	mov si, msg ; 來源索引 source index
+    36                                  
+    37                                  	; 設定磁碟機
+    38 0000005A B82008                  	mov ax, 0x0820 ; 寫入的記憶體地址
+    39 0000005D 8EC0                    	mov es, ax ; 寫入的記憶體地址（為什麼不直接寫入？）
+    40                                  	; mov es, 0x0820 ; ipl.nas:37: error: invalid combination of opcode and operands
+    41 0000005F BB0000                  	mov bx, 0 ; 寫入的記憶體地址: es*16+bx
+    42 00000062 B500                    	mov ch, 0 ; 磁柱 0 
+    43 00000064 B600                    	mov dh, 0 ; 磁頭 0
+    44 00000066 B102                    	mov cl, 2 ; 磁區 2（1 是開機磁區？）
+    45 00000068 B001                    	mov al, 1 ; 1 個磁區
+    46 0000006A B200                    	mov dl, 0x00 ; 第 0 個磁碟機
+    47                                  
+    48                                  readloop:
+    49 0000006C BE0000                  	mov si, 0 ; 失敗計數器
+    50                                  
+    51                                  retry:
+    52 0000006F B402                    	mov ah, 0x02 ; mode: read sectors from drive
+    53 00000071 CD13                    	int 0x13 
+    54 00000073 7310                    	jnc next ; jump if not carry
+    55 00000075 83C601                  	add si, 1
+    56 00000078 83FE05                  	cmp si, 5
+    57 0000007B 732B                    	jae error ; jump if above or equal 
+    58                                  	; reset
+    59 0000007D B400                    	mov ah, 0x00 
+    60 0000007F B200                    	mov dl, 0x00
+    61 00000081 CD13                    	int 0x13 
+    62 00000083 EBEA                    	jmp retry
+    63                                  
+    64                                  next:
+    65                                  	; 因為 es 不能做運算，所以丟到 ax
+    66 00000085 8CC0                    	mov ax, es 
+    67 00000087 83C020                  	add ax, 0x20 
+    68 0000008A 8EC0                    	mov es, ax
+    69                                  
+    70                                  	; 如果(++目前磁區) <= 18，讀取下一個磁區
+    71 0000008C 80C101                  	add cl, 1 ; cl -> 要讀取的磁區 
+    72 0000008F 80F912                  	cmp cl, 18 
+    73 00000092 76D8                    	jbe readloop
+    74                                  
+    75                                  	; 讀完一面了，換下一個磁頭
+    76 00000094 B101                    	mov cl, 1
+    77 00000096 80C602                  	add dh, 2 ; dh -> 目前的磁柱
+    78 00000099 80FE02                  	cmp dh, 2 
+    79 0000009C 76CE                    	jbe readloop 
+    80                                  
+    81                                  	; 讀完一個磁柱兩面了，換下一個磁柱
+    82 0000009E B600                    	mov dh, 0
+    83 000000A0 80C501                  	add ch, 1 ; ch -> 要讀取的磁柱
+    84 000000A3 80FD0A                  	cmp ch, CYLC
+    85 000000A6 76C4                    	jbe readloop
+    86                                  
+    87                                  
+    88                                  error: 
+    89 000000A8 BE[C000]                	mov si, msg
+    90                                  
+    91                                  putloop:
+    92 000000AB 8A04                    	mov al, [si] ; 將 si 指向的內容（1 byte）帶入 al, al = *si
+    93                                  	             ; 累加器低位部份 accumulator low
+    94 000000AD 83C601                  	add si, 1 ; 指向下一個 byte
+    95 000000B0 3C00                    	cmp al, 0 
+    96 000000B2 7409                    	je fin 
+    97 000000B4 B40E                    	mov ah, 0x0e ; 累加器高位部份 accumulator high，設定模式為打字機輸出
+    98 000000B6 BB0F00                  	mov bx, 15 ; 基底 base 
+    99 000000B9 CD10                    	int 0x10 ; interupt
+   100 000000BB EBEE                    	jmp putloop
+   101                                  	
+   102                                  fin:
+   103 000000BD F4                      	hlt ; cpu 休眠
+   104 000000BE EBFD                    	jmp fin
+   105                                  
+   106                                  msg:
+   107                                  	; 訊息
+   108 000000C0 0A0A                    	db 0x0a, 0x0a
+   109 000000C2 68656C6C6F2C20776F-     	db "hello, world"
+   109 000000CB 726C64             
+   110 000000CE 0A                      	db 0x0a
+   111 000000CF 00                      	db 0
+   112                                  
+   113 000000D0 <res 12Eh>              	resb 0x1fe-($-$$)
+   113          ******************       warning: uninitialized space declared in .text section: zeroing [-w+zeroing]
+   114                                  
+   115 000001FE 55AA                    	db 0x55, 0xaa
